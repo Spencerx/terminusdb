@@ -21,7 +21,7 @@
               collection_descriptor_prefixes/2,
               collection_descriptor_default_write_graph/2,
               descriptor_to_loggable/2,
-              check_transaction_data_version/2
+              check_transaction_data_version/3
           ]).
 
 /** <module> Descriptor Manipulation
@@ -1078,9 +1078,13 @@ collection_descriptor_default_write_graph(_, empty).
 get_transaction_data_version(Transaction_Object, Data_Version_Label, Data_Version_Value) :-
     is_dict(Transaction_Object),
     transaction_object{
-        descriptor : database_descriptor{},
+        % descriptor : database_descriptor{},
+        descriptor : Descriptor,
         instance_objects : [Instance_Object|_]
     } :< Transaction_Object,
+    (   database_descriptor{} :< Descriptor
+    ;   system_descriptor{} :< Descriptor
+    ),
     !,
     do_or_die(
         read_write_obj{ read : Layer } :< Instance_Object,
@@ -1092,35 +1096,38 @@ get_transaction_data_version(Transaction_Object, Data_Version_Label, Data_Versio
 get_transaction_data_version(Transaction_Object, Data_Version_Label, Data_Version_Value) :-
     is_dict(Transaction_Object),
     transaction_object{
-        descriptor : system_descriptor{},
-        instance_objects : [Instance_Object|_]
+        descriptor : branch_descriptor{
+            branch_name: Branch,
+            repository_descriptor: Repo
+        }
     } :< Transaction_Object,
     !,
-    do_or_die(
-        read_write_obj{ read : Layer } :< Instance_Object,
-        error(bad_system_transaction_instance_object(Instance_Object), _)),
-    !,
-    layer_to_id(Layer, Layer_Id),
-    Data_Version_Label = layer,
-    Data_Version_Value = Layer_Id.
+    branch_head_commit(Repo, Branch, Commit_Uri),
+    commit_id_uri(Repo, Commit_Id, Commit_Uri),
+    Data_Version_Label = commit,
+    Data_Version_Value = Commit_Id.
 get_transaction_data_version(Transaction_Object, _Data_Version_Label, _Data_Version_Value) :-
     throw(error(unexpected_argument_instantiation(get_transaction_data_version, Transaction_Object), _)).
 
-check_transaction_data_version(_Transaction_Object, no_data_version) :-
+check_transaction_data_version(Transaction_Object, no_data_version, Actual_Data_Version) :-
     !,
-    format(user_error, "check_transaction_data_version: no_data_version~n", []).
-check_transaction_data_version(Transaction_Object, data_version(Data_Version_Label_Requested, Data_Version_Value_Requested)) :-
+    format(user_error, "check_transaction_data_version: Requested: no_data_version~n", []),
+    get_transaction_data_version(Transaction_Object, Actual_Data_Version_Label, Actual_Data_Version_Value),
+    Actual_Data_Version = data_version(Actual_Data_Version_Label, Actual_Data_Version_Value),
+    format(user_error, "check_transaction_data_version: Actual: ~q~n", [Actual_Data_Version]).
+check_transaction_data_version(Transaction_Object, data_version(Data_Version_Label_Requested, Data_Version_Value_Requested), Actual_Data_Version) :-
     !,
     format(user_error, "check_transaction_data_version: Requested: ~a:~a~n", [Data_Version_Label_Requested, Data_Version_Value_Requested]),
-    get_transaction_data_version(Transaction_Object, Data_Version_Label_Transaction, Data_Version_Value_Transaction),
-    format(user_error, "check_transaction_data_version: Transaction: ~a:~a~n", [Data_Version_Label_Transaction, Data_Version_Value_Transaction]),
-    atomic_list_concat([Data_Version_Label_Requested, ':', Data_Version_Value_Requested], Data_Version_Requested),
-    atomic_list_concat([Data_Version_Label_Transaction, ':', Data_Version_Value_Transaction], Data_Version_Transaction),
+    get_transaction_data_version(Transaction_Object, Actual_Data_Version_Label, Actual_Data_Version_Value),
+    Actual_Data_Version = data_version(Actual_Data_Version_Label, Actual_Data_Version_Value),
+    format(user_error, "check_transaction_data_version: Actual: ~q~n", [Actual_Data_Version]),
+    atomic_list_concat([Data_Version_Label_Requested, ':', Data_Version_Value_Requested], Requested_Data_Version_Atom),
+    atomic_list_concat([Actual_Data_Version_Label, ':', Actual_Data_Version_Value], Actual_Data_Version_Atom),
     die_if(
-        Data_Version_Requested \= Data_Version_Transaction,
-        error(data_version_mismatch(Data_Version_Requested, Data_Version_Transaction), _)).
+        Requested_Data_Version_Atom \= Actual_Data_Version_Atom,
+        error(data_version_mismatch(Requested_Data_Version_Atom, Actual_Data_Version_Atom), _)).
 
-check_transaction_data_version(_Transaction_Object, Data_Version) :-
+check_transaction_data_version(_Transaction_Object, Data_Version, _Actual_Data_Version) :-
     throw(error(unexpected_argument_instantiation(check_transaction_data_version, Data_Version), _)).
 
 :- begin_tests(open_descriptor).

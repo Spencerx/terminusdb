@@ -753,7 +753,7 @@ test(get_bad_descriptor, [
                  prefix,
                  methods([options,post,delete,get,put])]).
 
-get_data_version(Request, data_version(Data_Version_Label, Data_Version_Value)) :-
+get_data_version_header(Request, data_version(Data_Version_Label, Data_Version_Value)) :-
     memberchk(terminusdb_data_version(Data_Version), Request),
     (   sub_atom(Data_Version, 0, Value_Offset, _, 'layer:')
     ->  Data_Version_Label = layer
@@ -761,11 +761,12 @@ get_data_version(Request, data_version(Data_Version_Label, Data_Version_Value)) 
     ->  Data_Version_Label = commit
     ;   throw(error(bad_data_version(Data_Version), _))),
     sub_atom(Data_Version, Value_Offset, _, 0, Data_Version_Value),
-    format(user_error, "get_data_version: ~a:~a~n", [Data_Version_Label, Data_Version_Value]).
-get_data_version(_Request, no_data_version) :-
-    !.
-get_data_version(_Request, Data_Version) :-
-    throw(error(unexpected_argument_instantiation(get_data_version, Data_Version), _)).
+    format(user_error, "get_data_version_header: ~a:~a~n", [Data_Version_Label, Data_Version_Value]).
+get_data_version_header(_Request, no_data_version) :-
+    !,
+    format(user_error, "get_data_version_header: no_data_version~n", []).
+get_data_version_header(_Request, Data_Version) :-
+    throw(error(unexpected_argument_instantiation(get_data_version_header, Data_Version), _)).
 
 write_data_version_header(no_data_version) :-
     !.
@@ -807,23 +808,24 @@ document_handler(get, Path, Request, System_DB, Auth) :-
             ->  JSON_Options = [width(0)]
             ;   JSON_Options = []),
 
-            get_data_version(Request, Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
             cors_json_stream_start(Stream_Started),
 
             (   nonvar(Query) % dictionaries do not need tags to be bound
-            ->  forall(api_generate_documents_by_query(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Query, Skip, Count, Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Stream_Started, Document, JSON_Options))
+            ->  forall(api_generate_documents_by_query(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Query, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
+                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))
             ;   ground(Id)
-            ->  api_get_document(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Data_Version, Id, Document),
-                cors_json_stream_write_dict(Request, As_List, Stream_Started, Document, JSON_Options)
+            ->  api_get_document(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Requested_Data_Version, Actual_Data_Version, Id, Document),
+                cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)
             ;   ground(Type)
-            ->  forall(api_generate_documents_by_type(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Skip, Count, Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Stream_Started, Document, JSON_Options))
-            ;   forall(api_generate_documents(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Skip, Count, Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Stream_Started, Document, JSON_Options))),
+            ->  forall(api_generate_documents_by_type(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
+                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))
+            ;   forall(api_generate_documents(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
+                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))),
 
-            cors_json_stream_end(Request, As_List, Stream_Started)
+            format(user_error, "This should appear in the headers: ~q~n", [Actual_Data_Version]),
+            cors_json_stream_end(Request, As_List, Actual_Data_Version, Stream_Started)
         )).
 
 document_handler(post, Path, Request, System_DB, Auth) :-
@@ -845,11 +847,12 @@ document_handler(post, Path, Request, System_DB, Auth) :-
             param_value_search_graph_type(Search, Graph_Type),
             param_value_search_optional(Search, full_replace, boolean, false, Full_Replace),
 
-            get_data_version(Request, Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
-            api_insert_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Full_Replace, Data_Version, Stream, Ids),
+            api_insert_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Full_Replace, Requested_Data_Version, Actual_Data_Version, Stream, Ids),
 
             write_cors_headers(Request),
+            write_data_version_header(Actual_Data_Version),
             reply_json(Ids),
             nl
         )).
@@ -869,18 +872,19 @@ document_handler(delete, Path, Request, System_DB, Auth) :-
             param_value_search_optional(Search, nuke, boolean, false, Nuke),
             param_value_search_optional(Search, id, atom, _, Id),
 
-            get_data_version(Request, Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
             (   Nuke = true
-            ->  api_nuke_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Data_Version)
+            ->  api_nuke_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Requested_Data_Version, Actual_Data_Version)
             ;   ground(Id)
-            ->  api_delete_document(System_DB, Auth, Path, Graph_Type, Author, Message, Data_Version, Id)
+            ->  api_delete_document(System_DB, Auth, Path, Graph_Type, Author, Message, Requested_Data_Version, Actual_Data_Version, Id)
             ;   http_read_json_semidet(stream(Stream), Request)
-            ->  api_delete_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Data_Version, Stream)
+            ->  api_delete_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Requested_Data_Version, Actual_Data_Version, Stream)
             ;   throw(error(missing_targets, _))
             ),
 
             write_cors_headers(Request),
+            write_data_version_header(Actual_Data_Version),
             nl,nl
         )).
 
@@ -899,11 +903,12 @@ document_handler(put, Path, Request, System_DB, Auth) :-
             param_value_search_graph_type(Search, Graph_Type),
             param_value_search_optional(Search, create, boolean, false, Create),
 
-            get_data_version(Request, Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
-            api_replace_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Stream, Create, Data_Version, Ids),
+            api_replace_documents(System_DB, Auth, Path, Graph_Type, Author, Message, Stream, Create, Requested_Data_Version, Actual_Data_Version, Ids),
 
             write_cors_headers(Request),
+            write_data_version_header(Actual_Data_Version),
             reply_json(Ids),
             nl
         )).
@@ -1028,6 +1033,7 @@ woql_handler_helper(Request, System_DB, Auth, Path_Option) :-
         Request,
         (   woql_query_json(System_DB, Auth, Path_Option, Query, Commit_Info, Files, All_Witnesses, JSON),
             write_cors_headers(Request),
+            % TODO: write_data_version_header(Actual_Data_Version),
             reply_json_dict(JSON)
         )).
 
@@ -3707,14 +3713,16 @@ cors_reply_json(Request, JSON, Options) :-
     reply_json(JSON, Options).
 
 /**
- * cors_json_stream_write_headers_(+Request, +As_List) is det.
+ * cors_json_stream_write_headers_(+Request, +As_List, +Data_Version) is det.
  *
  * Write CORS and JSON headers. This should only be called in the following:
  *   - cors_json_stream_end
  *   - cors_json_stream_write_dict
  */
-cors_json_stream_write_headers_(Request, As_List) :-
+cors_json_stream_write_headers_(Request, As_List, Data_Version) :-
+    format(user_error, "cors_json_stream_write_headers_: ~q~n", [Data_Version]),
     write_cors_headers(Request),
+    write_data_version_header(Data_Version),
     (   As_List = true
     ->  % Write the JSON header and the list start character (left square bracket).
         format("Content-type: application/json; charset=UTF-8~n~n[")
@@ -3737,26 +3745,30 @@ cors_json_stream_start(Stream_Started) :-
     throw(error(unexpected_argument_instantiation(cors_json_stream_start, Stream_Started), _)).
 
 /**
- * cors_json_stream_end(+Request, +As_List, +Stream_Started) is det.
+ * cors_json_stream_end(+Request, +As_List, +Data_Version, +Stream_Started) is det.
  *
  * Finalize the sequence of predicates used for writing a JSON stream to output.
  *
  * This is the last thing to do after writing all the JSON dictionaries to the
  * stream.
  */
-cors_json_stream_end(Request, As_List, stream_started(Started)) :-
+cors_json_stream_end(Request, As_List, Data_Version, stream_started(Started)) :-
+    format(user_error, "cors_json_stream_end: ~q~n", [Data_Version]),
+    !,
     % Write the headers in case they weren't written.
     (   Started = true
     ->  true
-    ;   cors_json_stream_write_headers_(Request, As_List)),
+    ;   cors_json_stream_write_headers_(Request, As_List, Data_Version)),
 
     % Write the list end character (right square bracket).
     (   As_List = true
     ->  format("]~n")
     ;   true).
+cors_json_stream_end(_Request, _As_List, _Data_Version, Stream_Started) :-
+    throw(error(unexpected_argument_instantiation(cors_json_stream_end, Stream_Started), _)).
 
 /**
- * cors_json_stream_write_dict(+Request, +As_List, +Stream_Started, +JSON, +JSON_Options) is det.
+ * cors_json_stream_write_dict(+Request, +As_List, +Data_Version, +Stream_Started, +JSON, +JSON_Options) is det.
  *
  * Write a single JSON dictionary to the stream or list with the appropriate
  * separators. If this is the first dictionary in the stream, write the headers
@@ -3765,7 +3777,8 @@ cors_json_stream_end(Request, As_List, stream_started(Started)) :-
  * After writing all the JSON dictionaries to the stream, use
  * cors_json_stream_end to end it.
  */
-cors_json_stream_write_dict(Request, As_List, Stream_Started, JSON, JSON_Options) :-
+cors_json_stream_write_dict(Request, As_List, Data_Version, Stream_Started, JSON, JSON_Options) :-
+    format(user_error, "cors_json_stream_write_dict: ~q~n", [Data_Version]),
     % Get the current value of Stream_Started before we possibly update it with
     % nb_setarg.
     Stream_Started = stream_started(Started),
@@ -3775,7 +3788,7 @@ cors_json_stream_write_dict(Request, As_List, Stream_Started, JSON, JSON_Options
     (   Started = true
     ->  true
     ;   nb_setarg(1, Stream_Started, true),
-        cors_json_stream_write_headers_(Request, As_List)),
+        cors_json_stream_write_headers_(Request, As_List, Data_Version)),
 
     % Write the list separator (comma).
     (   Started = true,

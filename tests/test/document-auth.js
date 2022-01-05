@@ -24,6 +24,8 @@ describe('document', function () {
       await db.del(agent, dbPath)
     })
 
+/*
+
     describe('fails insert with missing parameters', function () {
       const options = [
         [{ queryString: '', bodyString: '' }, 'author'],
@@ -507,6 +509,15 @@ describe('document', function () {
         .get(agent, docPath, { query: { graph_type: 'schema', id: schema['@id'] } })
         .then(document.verifyGetSuccess)
       expect(r.body).to.deep.equal(schema)
+    })
+
+*/
+
+    it('handles data version', async function () {
+      const r1 = await document
+        .get(agent, docPath, { query: { graph_type: 'instance' } })
+        .then(document.verifyGetSuccess)
+      console.error(r1)
     })
   })
 })
