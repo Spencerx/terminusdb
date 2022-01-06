@@ -1,13 +1,14 @@
 :- module(api_document, [
-              api_generate_documents/11,
-              api_generate_documents_by_type/12,
-              api_generate_documents_by_query/13,
-              api_get_document/10,
-              api_insert_documents/11,
-              api_delete_documents/9,
-              api_delete_document/9,
-              api_replace_documents/11,
-              api_nuke_documents/8
+              api_get_document_read_transaction/7,
+              api_generate_document_ids/6,
+              api_generate_document_ids_by_type/6,
+              api_generate_document_ids_by_query/7,
+              api_get_document/6,
+              api_insert_documents/9,
+              api_delete_documents/7,
+              api_delete_document/7,
+              api_replace_documents/9,
+              api_nuke_documents/6
           ]).
 
 :- use_module(core(util)).
@@ -43,113 +44,70 @@ assert_document_auth(SystemDB, Auth, Descriptor, Graph_Type, ReadWrite) :-
 
     check_descriptor_auth(SystemDB, Descriptor, Action, Auth).
 
-api_generate_document_uris_(instance, Transaction, Unfold, Skip, Count, Uri) :-
+api_get_document_read_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Requested_Data_Version, Actual_Data_Version, Transaction) :-
+    do_or_die(
+        resolve_absolute_string_descriptor(Path, Descriptor),
+        error(invalid_path(Path),_)),
+
+    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, read),
+
+    do_or_die(
+        open_descriptor(Descriptor, Transaction),
+        error(unresolvable_collection(Descriptor), _)),
+    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version).
+
+api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction) :-
+    do_or_die(
+        resolve_absolute_string_descriptor(Path, Descriptor),
+        error(invalid_path(Path),_)),
+
+    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
+
+    do_or_die(create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
+              error(unresolvable_collection(Descriptor), _)),
+    do_or_die(query_default_collection(Context, Transaction),
+              error(query_default_collection_failed_unexpectedly(Context), _)).
+
+api_generate_document_ids(instance, Transaction, Unfold, Skip, Count, Id) :-
     (   Unfold = true
     ->  Include_Subdocuments = false
     ;   Include_Subdocuments = true),
     skip_generate_nsols(
-        get_document_uri(Transaction, Include_Subdocuments, Uri),
+        get_document_uri(Transaction, Include_Subdocuments, Id),
         Skip,
         Count).
-api_generate_document_uris_(schema, Transaction, _Unfold, Skip, Count, Uri) :-
+api_generate_document_ids(schema, Transaction, _Unfold, Skip, Count, Id) :-
     skip_generate_nsols(
-        get_schema_document_uri(Transaction, Uri),
-        Skip,
-        Count).
-
-api_generate_document_uris_by_type_(instance, Transaction, Type, Skip, Count, Uri) :-
-    skip_generate_nsols(
-        get_document_uri_by_type(Transaction, Type, Uri),
-        Skip,
-        Count).
-api_generate_document_uris_by_type_(schema, Transaction, Type, Skip, Count, Uri) :-
-    skip_generate_nsols(
-        get_schema_document_uri_by_type(Transaction, Type, Uri),
+        get_schema_document_uri(Transaction, Id),
         Skip,
         Count).
 
-api_generate_documents_(instance, Transaction, Compress_Ids, Unfold, Skip, Count, Document) :-
-    api_generate_document_uris_(instance, Transaction, Unfold, Skip, Count, Uri),
-    get_document(Transaction, Compress_Ids, Unfold, Uri, Document).
-
-api_generate_documents_(schema, Transaction, _Prefixed, Unfold, Skip, Count, Document) :-
-    api_generate_document_uris_(schema, Transaction, Unfold, Skip, Count, Uri),
-    get_schema_document(Transaction, Uri, Document).
-
-api_generate_documents(SystemDB, Auth, Path, Schema_Or_Instance, Compress_Ids, Unfold, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, read),
-
-    do_or_die(open_descriptor(Descriptor, Transaction),
-              error(unresolvable_collection(Descriptor), _)),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-    format(user_error, "Is this SOMETHING? ~q~n", [Actual_Data_Version]),
-
-    api_generate_documents_(Schema_Or_Instance, Transaction, Compress_Ids, Unfold, Skip, Count, Document).
-
-api_generate_documents_by_type_(schema, Transaction, Type, _Prefixed, _Unfold, Skip, Count, Document) :-
-    api_generate_document_uris_by_type_(schema, Transaction, Type, Skip, Count, Uri),
-    get_schema_document(Transaction, Uri, Document).
-api_generate_documents_by_type_(instance, Transaction, Type, Compress_Ids, Unfold, Skip, Count, Document) :-
-    api_generate_document_uris_by_type_(instance, Transaction, Type, Skip, Count, Uri),
-    get_document(Transaction, Compress_Ids, Unfold, Uri, Document).
-
-api_generate_documents_by_type(SystemDB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Graph_Type, read),
-
-    do_or_die(open_descriptor(Descriptor, Transaction),
-              error(unresolvable_collection(Descriptor), _)),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
-    api_generate_documents_by_type_(Graph_Type, Transaction, Type, Compress_Ids, Unfold, Skip, Count, Document).
-
-api_generate_documents_by_query(SystemDB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Query, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Graph_Type, read),
-
-    do_or_die(open_descriptor(Descriptor, Transaction),
-              error(unresolvable_collection(Descriptor), _)),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
-    do_or_die(Graph_Type = instance,
-              error(query_is_only_supported_for_instance_graphs, _)),
-
+api_generate_document_ids_by_type(instance, Transaction, Type, Skip, Count, Id) :-
     skip_generate_nsols(
-        match_query_document_uri(Transaction, Type, Query, Uri),
+        get_document_uri_by_type(Transaction, Type, Id),
         Skip,
-        Count),
-    get_document(Transaction, Compress_Ids, Unfold, Uri, Document).
+        Count).
+api_generate_document_ids_by_type(schema, Transaction, Type, Skip, Count, Id) :-
+    skip_generate_nsols(
+        get_schema_document_uri_by_type(Transaction, Type, Id),
+        Skip,
+        Count).
 
-api_get_document_(instance, Transaction, Compress_Ids, Unfold, Id, Document) :-
+api_generate_document_ids_by_query(instance, Transaction, Type, Query, Skip, Count, Id) :-
+    skip_generate_nsols(
+        match_query_document_uri(Transaction, Type, Query, Id),
+        Skip,
+        Count).
+api_generate_document_ids_by_query(schema, _Transaction, _Type, _Query, _Skip, _Count, _Id) :-
+    throw(error(query_is_only_supported_for_instance_graphs, _)).
+
+api_get_document(instance, Transaction, Compress_Ids, Unfold, Id, Document) :-
     do_or_die(get_document(Transaction, Compress_Ids, Unfold, Id, Document),
               error(document_not_found(Id), _)).
 
-api_get_document_(schema, Transaction, _Prefixed, _Unfold, Id, Document) :-
+api_get_document(schema, Transaction, _Prefixed, _Unfold, Id, Document) :-
     do_or_die(get_schema_document(Transaction, Id, Document),
               error(document_not_found(Id), _)).
-
-api_get_document(SystemDB, Auth, Path, Schema_Or_Instance, Compress_Ids, Unfold, Requested_Data_Version, Actual_Data_Version, Id, Document) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, read),
-
-    do_or_die(open_descriptor(Descriptor, Transaction),
-              error(unresolvable_collection(Descriptor), _)),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
-    api_get_document_(Schema_Or_Instance, Transaction, Compress_Ids, Unfold, Id, Document).
 
 embed_document_in_error(Error, Document, New_Error) :-
     Error =.. Error_List,
@@ -215,20 +173,9 @@ replace_existing_graph(instance, Transaction, Stream) :-
     forall(api_insert_document_(instance, Transaction, Stream, _),
            true).
 
-api_insert_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Full_Replace, Requested_Data_Version, Actual_Data_Version, Stream, Ids) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
-
-    do_or_die(create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
-              error(unresolvable_collection(Descriptor), _)),
-    query_default_collection(Context, Transaction),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
+api_insert_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Full_Replace, Stream, Ids) :-
+    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
     stream_property(Stream, position(Pos)),
-
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
                          Full_Replace = true
@@ -245,20 +192,9 @@ api_delete_document_(schema, Transaction, Id) :-
 api_delete_document_(instance, Transaction, Id) :-
     delete_document(Transaction, Id).
 
-api_delete_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Requested_Data_Version, Actual_Data_Version, Stream) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
-
-    do_or_die(create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
-              error(unresolvable_collection(Descriptor), _)),
-    query_default_collection(Context, Transaction),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
+api_delete_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Stream) :-
+    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
     stream_property(Stream, position(Pos)),
-
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
                          forall(
@@ -270,18 +206,8 @@ api_delete_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, 
                              api_delete_document_(Schema_Or_Instance, Transaction, ID))),
                      _).
 
-api_delete_document(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Requested_Data_Version, Actual_Data_Version, ID) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
-
-    do_or_die(create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
-              error(unresolvable_collection(Descriptor), _)),
-    query_default_collection(Context, Transaction),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
+api_delete_document(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, ID) :-
+    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
     with_transaction(Context,
                      api_delete_document_(Schema_Or_Instance, Transaction, ID),
                      _).
@@ -291,18 +217,8 @@ api_nuke_documents_(schema, Transaction) :-
 api_nuke_documents_(instance, Transaction) :-
     nuke_documents(Transaction).
 
-api_nuke_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Requested_Data_Version, Actual_Data_Version) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
-
-    do_or_die(create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
-              error(unresolvable_collection(Descriptor), _)),
-    query_default_collection(Context, Transaction),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
+api_nuke_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message) :-
+    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
     with_transaction(Context,
                      api_nuke_documents_(Schema_Or_Instance, Transaction),
                     _).
@@ -312,22 +228,9 @@ api_replace_document_(instance, Transaction, Document, Create, Id):-
 api_replace_document_(schema, Transaction, Document, Create, Id):-
     replace_schema_document(Transaction, Document, Create, Id).
 
-api_replace_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Stream, Create, Requested_Data_Version, Actual_Data_Version, Ids) :-
-    do_or_die(
-        resolve_absolute_string_descriptor(Path, Descriptor),
-        error(invalid_path(Path),_)),
-
-    assert_document_auth(SystemDB, Auth, Descriptor, Schema_Or_Instance, write),
-
-    do_or_die(
-        create_context(Descriptor, commit_info{author: Author, message: Message}, Context),
-        error(unresolvable_collection(Descriptor), _)),
-
-    query_default_collection(Context, Transaction),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version),
-
+api_replace_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Stream, Create, Ids) :-
+    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
     stream_property(Stream, position(Pos)),
-
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
                          findall(Id,

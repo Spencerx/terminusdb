@@ -110,15 +110,16 @@
               unbundle/4,
 
               % api_document.pl
-              api_generate_documents/11,
-              api_generate_documents_by_type/12,
-              api_generate_documents_by_query/13,
-              api_get_document/10,
-              api_insert_documents/11,
-              api_delete_documents/9,
-              api_delete_document/9,
-              api_replace_documents/11,
-              api_nuke_documents/8,
+              api_get_document_read_transaction/7,
+              api_generate_document_ids/6,
+              api_generate_document_ids_by_type/6,
+              api_generate_document_ids_by_query/7,
+              api_get_document/6,
+              api_insert_documents/9,
+              api_delete_documents/7,
+              api_delete_document/7,
+              api_replace_documents/9,
+              api_nuke_documents/6,
 
               % api_user_organizations.pl
               user_organizations/3

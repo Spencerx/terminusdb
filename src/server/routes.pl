@@ -811,18 +811,26 @@ document_handler(get, Path, Request, System_DB, Auth) :-
             get_data_version_header(Request, Requested_Data_Version),
 
             cors_json_stream_start(Stream_Started),
+            api_get_document_read_transaction(System_DB, Auth, Path, Graph_Type, Requested_Data_Version, Actual_Data_Version, Transaction),
 
             (   nonvar(Query) % dictionaries do not need tags to be bound
-            ->  forall(api_generate_documents_by_query(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Query, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))
+            ->  forall(
+                    api_generate_document_ids_by_query(Graph_Type, Transaction, Type, Query, Skip, Count, Id),
+                    (   api_get_document(Graph_Type, Transaction, Compress_Ids, Unfold, Id, Document),
+                        cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)))
             ;   ground(Id)
-            ->  api_get_document(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Requested_Data_Version, Actual_Data_Version, Id, Document),
+            ->  api_get_document(Graph_Type, Transaction, Compress_Ids, Unfold, Id, Document),
                 cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)
             ;   ground(Type)
-            ->  forall(api_generate_documents_by_type(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Type, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))
-            ;   forall(api_generate_documents(System_DB, Auth, Path, Graph_Type, Compress_Ids, Unfold, Skip, Count, Requested_Data_Version, Actual_Data_Version, Document),
-                       cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options))),
+            ->  forall(
+                    api_generate_document_ids_by_type(Graph_Type, Transaction, Type, Skip, Count, Id),
+                    (   api_get_document(Graph_Type, Transaction, Compress_Ids, Unfold, Id, Document),
+                        cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)))
+            ;   forall(
+                    api_generate_document_ids(Graph_Type, Transaction, Unfold, Skip, Count, Id),
+                    (   api_get_document(Graph_Type, Transaction, Compress_Ids, Unfold, Id, Document),
+                        cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)))
+            ),
 
             format(user_error, "This should appear in the headers: ~q~n", [Actual_Data_Version]),
             cors_json_stream_end(Request, As_List, Actual_Data_Version, Stream_Started)
