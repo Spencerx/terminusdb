@@ -24,8 +24,6 @@ describe('document', function () {
       await db.del(agent, dbPath)
     })
 
-/*
-
     describe('fails insert with missing parameters', function () {
       const options = [
         [{ queryString: '', bodyString: '' }, 'author'],
@@ -511,15 +509,13 @@ describe('document', function () {
       expect(r.body).to.deep.equal(schema)
     })
 
-*/
-
     it('has same data version for same document queries', async function () {
       const r1 = await document
-        .get(agent, docPath)
+        .get(agent, docPath, { query: { as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion1 = r1.header['terminusdb-data-version']
       const r2 = await document
-        .get(agent, docPath)
+        .get(agent, docPath, { query: { as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion2 = r2.header['terminusdb-data-version']
       expect(dataVersion1).to.equal(dataVersion2)
@@ -527,7 +523,7 @@ describe('document', function () {
 
     it('has expected data versions for insert and schema/instance queries', async function () {
       const r1 = await document
-        .get(agent, docPath)
+        .get(agent, docPath, { query: { as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion1 = r1.header['terminusdb-data-version']
       const schema = { '@id': util.randomString(), '@type': 'Class' }
@@ -547,6 +543,5 @@ describe('document', function () {
       expect(dataVersion2).to.equal(dataVersion3)
       expect(dataVersion3).to.equal(dataVersion4)
     })
-
   })
 })
