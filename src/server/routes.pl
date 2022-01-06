@@ -760,11 +760,9 @@ get_data_version_header(Request, data_version(Data_Version_Label, Data_Version_V
     ;   sub_atom(Data_Version, 0, _, Data_Version_Value, 'commit:')
     ->  Data_Version_Label = commit
     ;   throw(error(bad_data_version(Data_Version), _))),
-    sub_atom(Data_Version, Value_Offset, _, 0, Data_Version_Value),
-    format(user_error, "get_data_version_header: ~a:~a~n", [Data_Version_Label, Data_Version_Value]).
+    sub_atom(Data_Version, Value_Offset, _, 0, Data_Version_Value).
 get_data_version_header(_Request, no_data_version) :-
-    !,
-    format(user_error, "get_data_version_header: no_data_version~n", []).
+    !.
 get_data_version_header(_Request, Data_Version) :-
     throw(error(unexpected_argument_instantiation(get_data_version_header, Data_Version), _)).
 
@@ -775,6 +773,18 @@ write_data_version_header(data_version(Data_Version_Label, Data_Version_Value)) 
     format("TerminusDB-Data-Version: ~s:~s~n", [Data_Version_Label, Data_Version_Value]).
 write_data_version_header(Data_Version) :-
     throw(error(unexpected_argument_instantiation(write_data_version_header, Data_Version), _)).
+
+compare_data_versions(no_data_version, _Actual_Data_Version) :-
+    !.
+compare_data_versions(data_version(Label, Value), data_version(Label, Value)) :-
+    !.
+compare_data_versions(data_version(Requested_Label, Requested_Value), data_version(Actual_Label, Actual_Value)) :-
+    !,
+    atomic_list_concat([Requested_Label, ':', Requested_Value], Requested_Data_Version),
+    atomic_list_concat([Actual_Label, ':', Actual_Value], Actual_Data_Version),
+    throw(error(data_version_mismatch(Requested_Data_Version, Actual_Data_Version), _)).
+compare_data_versions(Requested_Data_Version, _Actual_Data_Version) :-
+    throw(error(unexpected_argument_instantiation(compare_data_versions, Requested_Data_Version), _)).
 
 document_handler(get, Path, Request, System_DB, Auth) :-
     api_report_errors(
@@ -811,7 +821,10 @@ document_handler(get, Path, Request, System_DB, Auth) :-
             get_data_version_header(Request, Requested_Data_Version),
 
             cors_json_stream_start(Stream_Started),
-            api_get_document_read_transaction(System_DB, Auth, Path, Graph_Type, Requested_Data_Version, Actual_Data_Version, Transaction),
+            api_get_document_read_transaction(System_DB, Auth, Path, Graph_Type, Transaction),
+
+            transaction_data_version(Transaction, Actual_Data_Version),
+            compare_data_versions(Requested_Data_Version, Actual_Data_Version),
 
             (   nonvar(Query) % dictionaries do not need tags to be bound
             ->  forall(
@@ -832,7 +845,6 @@ document_handler(get, Path, Request, System_DB, Auth) :-
                         cors_json_stream_write_dict(Request, As_List, Actual_Data_Version, Stream_Started, Document, JSON_Options)))
             ),
 
-            format(user_error, "This should appear in the headers: ~q~n", [Actual_Data_Version]),
             cors_json_stream_end(Request, As_List, Actual_Data_Version, Stream_Started)
         )).
 
@@ -855,13 +867,19 @@ document_handler(post, Path, Request, System_DB, Auth) :-
             param_value_search_graph_type(Search, Graph_Type),
             param_value_search_optional(Search, full_replace, boolean, false, Full_Replace),
 
-            %get_data_version_header(Request, Requested_Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
             api_get_document_write_transaction(System_DB, Auth, Path, Graph_Type, Author, Message, Context, Transaction),
+
+            transaction_data_version(Transaction, Actual_Data_Version),
+            compare_data_versions(Requested_Data_Version, Actual_Data_Version),
+
             api_insert_documents(Context, Transaction, Graph_Type, Full_Replace, Stream, Ids),
 
+            transaction_data_version(Transaction, New_Data_Version),
+
             write_cors_headers(Request),
-            %write_data_version_header(Actual_Data_Version),
+            write_data_version_header(New_Data_Version),
             reply_json(Ids),
             nl
         )).
@@ -881,8 +899,12 @@ document_handler(delete, Path, Request, System_DB, Auth) :-
             param_value_search_optional(Search, nuke, boolean, false, Nuke),
             param_value_search_optional(Search, id, atom, _, Id),
 
-            %get_data_version_header(Request, Requested_Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
+
             api_get_document_write_transaction(System_DB, Auth, Path, Graph_Type, Author, Message, Context, Transaction),
+
+            transaction_data_version(Transaction, Actual_Data_Version),
+            compare_data_versions(Requested_Data_Version, Actual_Data_Version),
 
             (   Nuke = true
             ->  api_nuke_documents(Context, Transaction, Graph_Type)
@@ -893,8 +915,10 @@ document_handler(delete, Path, Request, System_DB, Auth) :-
             ;   throw(error(missing_targets, _))
             ),
 
+            transaction_data_version(Transaction, New_Data_Version),
+
             write_cors_headers(Request),
-            %write_data_version_header(Actual_Data_Version),
+            write_data_version_header(New_Data_Version),
             nl,nl
         )).
 
@@ -913,13 +937,19 @@ document_handler(put, Path, Request, System_DB, Auth) :-
             param_value_search_graph_type(Search, Graph_Type),
             param_value_search_optional(Search, create, boolean, false, Create),
 
-            %get_data_version_header(Request, Requested_Data_Version),
+            get_data_version_header(Request, Requested_Data_Version),
 
             api_get_document_write_transaction(System_DB, Auth, Path, Graph_Type, Author, Message, Context, Transaction),
+
+            transaction_data_version(Transaction, Actual_Data_Version),
+            compare_data_versions(Requested_Data_Version, Actual_Data_Version),
+
             api_replace_documents(Context, Transaction, Graph_Type, Stream, Create, Ids),
 
+            transaction_data_version(Transaction, New_Data_Version),
+
             write_cors_headers(Request),
-            %write_data_version_header(Actual_Data_Version),
+            write_data_version_header(New_Data_Version),
             reply_json(Ids),
             nl
         )).
@@ -3731,7 +3761,6 @@ cors_reply_json(Request, JSON, Options) :-
  *   - cors_json_stream_write_dict
  */
 cors_json_stream_write_headers_(Request, As_List, Data_Version) :-
-    format(user_error, "cors_json_stream_write_headers_: ~q~n", [Data_Version]),
     write_cors_headers(Request),
     write_data_version_header(Data_Version),
     (   As_List = true
@@ -3764,7 +3793,6 @@ cors_json_stream_start(Stream_Started) :-
  * stream.
  */
 cors_json_stream_end(Request, As_List, Data_Version, stream_started(Started)) :-
-    format(user_error, "cors_json_stream_end: ~q~n", [Data_Version]),
     !,
     % Write the headers in case they weren't written.
     (   Started = true
@@ -3789,7 +3817,6 @@ cors_json_stream_end(_Request, _As_List, _Data_Version, Stream_Started) :-
  * cors_json_stream_end to end it.
  */
 cors_json_stream_write_dict(Request, As_List, Data_Version, Stream_Started, JSON, JSON_Options) :-
-    format(user_error, "cors_json_stream_write_dict: ~q~n", [Data_Version]),
     % Get the current value of Stream_Started before we possibly update it with
     % nb_setarg.
     Stream_Started = stream_started(Started),

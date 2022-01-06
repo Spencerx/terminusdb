@@ -1,5 +1,5 @@
 :- module(api_document, [
-              api_get_document_read_transaction/7,
+              api_get_document_read_transaction/5,
               api_get_document_write_transaction/8,
               api_generate_document_ids/6,
               api_generate_document_ids_by_type/6,
@@ -45,7 +45,7 @@ assert_document_auth(SystemDB, Auth, Descriptor, Graph_Type, ReadWrite) :-
 
     check_descriptor_auth(SystemDB, Descriptor, Action, Auth).
 
-api_get_document_read_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Requested_Data_Version, Actual_Data_Version, Transaction) :-
+api_get_document_read_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Transaction) :-
     do_or_die(
         resolve_absolute_string_descriptor(Path, Descriptor),
         error(invalid_path(Path),_)),
@@ -54,8 +54,7 @@ api_get_document_read_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Requ
 
     do_or_die(
         open_descriptor(Descriptor, Transaction),
-        error(unresolvable_collection(Descriptor), _)),
-    check_transaction_data_version(Transaction, Requested_Data_Version, Actual_Data_Version).
+        error(unresolvable_collection(Descriptor), _)).
 
 api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction) :-
     do_or_die(

@@ -110,7 +110,7 @@
               unbundle/4,
 
               % api_document.pl
-              api_get_document_read_transaction/7,
+              api_get_document_read_transaction/5,
               api_get_document_write_transaction/8,
               api_generate_document_ids/6,
               api_generate_document_ids_by_type/6,

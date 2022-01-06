@@ -515,11 +515,11 @@ describe('document', function () {
 
     it('has same data version for same document queries', async function () {
       const r1 = await document
-        .get(agent, docPath, { query: { graph_type: 'instance' } })
+        .get(agent, docPath)
         .then(document.verifyGetSuccess)
       const dataVersion1 = r1.header['terminusdb-data-version']
       const r2 = await document
-        .get(agent, docPath, { query: { graph_type: 'instance' } })
+        .get(agent, docPath)
         .then(document.verifyGetSuccess)
       const dataVersion2 = r2.header['terminusdb-data-version']
       expect(dataVersion1).to.equal(dataVersion2)
@@ -532,11 +532,11 @@ describe('document', function () {
         .then(document.verifyInsertSuccess)
       const dataVersion1 = r1.header['terminusdb-data-version']
       const r2 = await document
-        .get(agent, docPath, { query: { graph_type: 'schema' } })
+        .get(agent, docPath, { query: { graph_type: 'schema', as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion2 = r2.header['terminusdb-data-version']
       const r3 = await document
-        .get(agent, docPath, { query: { graph_type: 'instance' } })
+        .get(agent, docPath, { query: { graph_type: 'instance', as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion3 = r3.header['terminusdb-data-version']
       expect(dataVersion1).to.equal(dataVersion2)
