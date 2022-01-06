@@ -543,5 +543,14 @@ describe('document', function () {
       expect(dataVersion2).to.equal(dataVersion3)
       expect(dataVersion3).to.equal(dataVersion4)
     })
+
+    it('reports bad data version', async function () {
+      const r = await document
+        .get(agent, docPath)
+        .set('TerminusDB-Data-Version', '{}')
+        .then(document.verifyGetFailure)
+      expect(r.body['api:error']['@type']).to.equal('api:BadDataVersion')
+      expect(r.body['api:error']['api:data_version']).to.equal('{}')
+    })
   })
 })

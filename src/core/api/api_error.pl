@@ -1564,6 +1564,16 @@ api_document_error_jsonld(Type, error(key_fields_is_empty(Document),_),JSON) :-
                               'api:document' : Document },
              'api:message' : Msg
             }.
+api_document_error_jsonld(Type, error(bad_data_version(Data_Version),_),JSON) :-
+    document_error_type(Type, JSON_Type),
+    format(string(Data_Version_String), "~w", [Data_Version]),
+    format(string(Msg), "Bad data version: ~s", [Data_Version_String]),
+    JSON = _{'@type' : JSON_Type,
+             'api:status' : "api:failure",
+             'api:error' : _{ '@type' : 'api:BadDataVersion',
+                              'api:data_version' : Data_Version_String },
+             'api:message' : Msg
+            }.
 
 /**
  * generic_exception_jsonld(Error,JSON) is det.
