@@ -525,22 +525,27 @@ describe('document', function () {
       expect(dataVersion1).to.equal(dataVersion2)
     })
 
-    it('has same data version for schema and instance document queries', async function () {
-      const schema = { '@id': util.randomString(), '@type': 'Class' }
+    it('has expected data versions for insert and schema/instance queries', async function () {
       const r1 = await document
+        .get(agent, docPath)
+        .then(document.verifyGetSuccess)
+      const dataVersion1 = r1.header['terminusdb-data-version']
+      const schema = { '@id': util.randomString(), '@type': 'Class' }
+      const r2 = await document
         .insert(agent, docPath, { schema: schema })
         .then(document.verifyInsertSuccess)
-      const dataVersion1 = r1.header['terminusdb-data-version']
-      const r2 = await document
-        .get(agent, docPath, { query: { graph_type: 'schema', as_list: true } })
-        .then(document.verifyGetSuccess)
       const dataVersion2 = r2.header['terminusdb-data-version']
       const r3 = await document
-        .get(agent, docPath, { query: { graph_type: 'instance', as_list: true } })
+        .get(agent, docPath, { query: { graph_type: 'schema', as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion3 = r3.header['terminusdb-data-version']
-      expect(dataVersion1).to.equal(dataVersion2)
+      const r4 = await document
+        .get(agent, docPath, { query: { graph_type: 'instance', as_list: true } })
+        .then(document.verifyGetSuccess)
+      const dataVersion4 = r4.header['terminusdb-data-version']
+      expect(dataVersion1).to.not.equal(dataVersion2)
       expect(dataVersion2).to.equal(dataVersion3)
+      expect(dataVersion3).to.equal(dataVersion4)
     })
 
   })
