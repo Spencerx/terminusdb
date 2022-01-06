@@ -539,7 +539,9 @@ describe('document', function () {
         .get(agent, docPath, { query: { graph_type: 'instance', as_list: true } })
         .then(document.verifyGetSuccess)
       const dataVersion4 = r4.header['terminusdb-data-version']
+      expect(dataVersion1).to.match(/^commit:/)
       expect(dataVersion1).to.not.equal(dataVersion2)
+      expect(dataVersion2).to.match(/^commit:/)
       expect(dataVersion2).to.equal(dataVersion3)
       expect(dataVersion3).to.equal(dataVersion4)
     })
