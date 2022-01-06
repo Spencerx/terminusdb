@@ -1,14 +1,15 @@
 :- module(api_document, [
               api_get_document_read_transaction/7,
+              api_get_document_write_transaction/8,
               api_generate_document_ids/6,
               api_generate_document_ids_by_type/6,
               api_generate_document_ids_by_query/7,
               api_get_document/6,
-              api_insert_documents/9,
-              api_delete_documents/7,
-              api_delete_document/7,
-              api_replace_documents/9,
-              api_nuke_documents/6
+              api_insert_documents/6,
+              api_delete_documents/4,
+              api_delete_document/4,
+              api_replace_documents/6,
+              api_nuke_documents/3
           ]).
 
 :- use_module(core(util)).
@@ -173,8 +174,7 @@ replace_existing_graph(instance, Transaction, Stream) :-
     forall(api_insert_document_(instance, Transaction, Stream, _),
            true).
 
-api_insert_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Full_Replace, Stream, Ids) :-
-    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
+api_insert_documents(Context, Transaction, Schema_Or_Instance, Full_Replace, Stream, Ids) :-
     stream_property(Stream, position(Pos)),
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
@@ -192,8 +192,7 @@ api_delete_document_(schema, Transaction, Id) :-
 api_delete_document_(instance, Transaction, Id) :-
     delete_document(Transaction, Id).
 
-api_delete_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Stream) :-
-    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
+api_delete_documents(Context, Transaction, Schema_Or_Instance, Stream) :-
     stream_property(Stream, position(Pos)),
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
@@ -206,8 +205,7 @@ api_delete_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, 
                              api_delete_document_(Schema_Or_Instance, Transaction, ID))),
                      _).
 
-api_delete_document(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, ID) :-
-    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
+api_delete_document(Context, Transaction, Schema_Or_Instance, ID) :-
     with_transaction(Context,
                      api_delete_document_(Schema_Or_Instance, Transaction, ID),
                      _).
@@ -217,8 +215,7 @@ api_nuke_documents_(schema, Transaction) :-
 api_nuke_documents_(instance, Transaction) :-
     nuke_documents(Transaction).
 
-api_nuke_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message) :-
-    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
+api_nuke_documents(Context, Transaction, Schema_Or_Instance) :-
     with_transaction(Context,
                      api_nuke_documents_(Schema_Or_Instance, Transaction),
                     _).
@@ -228,8 +225,7 @@ api_replace_document_(instance, Transaction, Document, Create, Id):-
 api_replace_document_(schema, Transaction, Document, Create, Id):-
     replace_schema_document(Transaction, Document, Create, Id).
 
-api_replace_documents(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Stream, Create, Ids) :-
-    api_get_document_write_transaction(SystemDB, Auth, Path, Schema_Or_Instance, Author, Message, Context, Transaction),
+api_replace_documents(Context, Transaction, Schema_Or_Instance, Stream, Create, Ids) :-
     stream_property(Stream, position(Pos)),
     with_transaction(Context,
                      (   set_stream_position(Stream, Pos),
@@ -268,7 +264,8 @@ insert_some_cities(System, Path) :-
   "@id" : "City/Utrecht",
   "name" : "Utrecht" }',
                 Stream),
-    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, Stream, _Out_Ids).
+    api_get_document_write_transaction(System, 'User/admin', Path, instance, "author", "message", Context, Transaction),
+    api_insert_documents(Context, Transaction, instance, false, Stream, _Out_Ids).
 
 test(delete_objects_with_stream,
      [setup((setup_temp_store(State),
@@ -279,7 +276,8 @@ test(delete_objects_with_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin" "City/Pretoria"', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
+    api_delete_documents(Context1, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -299,7 +297,8 @@ test(delete_objects_with_string,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('["City/Dublin", "City/Pretoria"]', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
+    api_delete_documents(Context1, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -319,7 +318,8 @@ test(delete_objects_with_mixed_string_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin"\n["City/Pretoria"]', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
+    api_delete_documents(Context1, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -348,7 +348,8 @@ insert_some_cities(System, Path) :-
   "@id" : "City/Utrecht",
   "name" : "Utrecht" }',
                 Stream),
-    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, Stream, _Out_Ids).
+    api_get_document_write_transaction(System, 'User/admin', Path, instance, "author", "message", Context, Transaction),
+    api_insert_documents(Context, Transaction, instance, false, Stream, _Out_Ids).
 
 test(replace_objects_with_stream,
      [setup((setup_temp_store(State),
@@ -365,7 +366,8 @@ test(replace_objects_with_stream,
 { "@type": "City",
   "@id" : "City/Pretoria",
   "name" : "Tshwane" }', Stream),
-    api_replace_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream, false, no_data_version, _Actual_Data_Version, Ids),
+    api_get_document_write_transaction(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Context, Transaction),
+    api_replace_documents(Context, Transaction, instance, Stream, false, Ids),
 
     Ids = ['http://example.com/data/world/City/Dublin','http://example.com/data/world/City/Pretoria'].
 

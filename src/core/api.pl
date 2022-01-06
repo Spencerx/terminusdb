@@ -111,15 +111,16 @@
 
               % api_document.pl
               api_get_document_read_transaction/7,
+              api_get_document_write_transaction/8,
               api_generate_document_ids/6,
               api_generate_document_ids_by_type/6,
               api_generate_document_ids_by_query/7,
               api_get_document/6,
-              api_insert_documents/9,
-              api_delete_documents/7,
-              api_delete_document/7,
-              api_replace_documents/9,
-              api_nuke_documents/6,
+              api_insert_documents/6,
+              api_delete_documents/4,
+              api_delete_document/4,
+              api_replace_documents/6,
+              api_nuke_documents/3,
 
               % api_user_organizations.pl
               user_organizations/3
