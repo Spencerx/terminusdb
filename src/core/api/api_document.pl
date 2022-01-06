@@ -275,8 +275,8 @@ test(delete_objects_with_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin" "City/Pretoria"', Stream),
-    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
-    api_delete_documents(Context1, Transaction, instance, Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Write_Context, Transaction),
+    api_delete_documents(Write_Context, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -296,8 +296,8 @@ test(delete_objects_with_string,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('["City/Dublin", "City/Pretoria"]', Stream),
-    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
-    api_delete_documents(Context1, Transaction, instance, Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Write_Context, Transaction),
+    api_delete_documents(Write_Context, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -317,8 +317,8 @@ test(delete_objects_with_mixed_string_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin"\n["City/Pretoria"]', Stream),
-    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Context1, Transaction),
-    api_delete_documents(Context1, Transaction, instance, Stream),
+    api_get_document_write_transaction(System, 'User/admin', 'admin/foo', instance, "author", "message", Write_Context, Transaction),
+    api_delete_documents(Write_Context, Transaction, instance, Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
