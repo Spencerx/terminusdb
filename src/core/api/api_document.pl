@@ -268,7 +268,7 @@ insert_some_cities(System, Path) :-
   "@id" : "City/Utrecht",
   "name" : "Utrecht" }',
                 Stream),
-    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, no_data_version, _Actual_Data_Version, Stream, _Out_Ids).
+    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, Stream, _Out_Ids).
 
 test(delete_objects_with_stream,
      [setup((setup_temp_store(State),
@@ -279,7 +279,7 @@ test(delete_objects_with_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin" "City/Pretoria"', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", no_data_version, _Actual_Data_Version, Stream),
+    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -299,7 +299,7 @@ test(delete_objects_with_string,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('["City/Dublin", "City/Pretoria"]', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", no_data_version, _Actual_Data_Version, Stream),
+    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -319,7 +319,7 @@ test(delete_objects_with_mixed_string_stream,
     insert_some_cities(System, 'admin/foo'),
 
     open_string('"City/Dublin"\n["City/Pretoria"]', Stream),
-    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", no_data_version, _Actual_Data_Version, Stream),
+    api_delete_documents(system_descriptor{}, 'User/admin', 'admin/foo', instance, "author", "message", Stream),
 
     resolve_absolute_string_descriptor("admin/foo", Descriptor),
     create_context(Descriptor, Context),
@@ -348,7 +348,7 @@ insert_some_cities(System, Path) :-
   "@id" : "City/Utrecht",
   "name" : "Utrecht" }',
                 Stream),
-    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, no_data_version, _Actual_Data_Version, Stream, _Out_Ids).
+    api_insert_documents(System, 'User/admin', Path, instance, "author", "message", false, Stream, _Out_Ids).
 
 test(replace_objects_with_stream,
      [setup((setup_temp_store(State),
