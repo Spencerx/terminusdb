@@ -2332,7 +2332,7 @@ paths:
                 "unfold":
                   type: boolean
                   default: true
-                  description: Expand subdocuments inline when retrieving documents from the specified commits. Set to false to compare folded documents by reference.
+                  description: Expand subdocuments inline when retrieving documents from the specified commits. Set to false to compare documents without unfolding.
       responses:
         200:
           description: "Successful Diff"
