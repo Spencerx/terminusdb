@@ -568,7 +568,7 @@ describe('diff-id', function () {
         .insert(agent, {
           instance: { '@type': class1, a: 'pickles and eggs' },
         })
-      
+
       const [docId1Long] = r1.body
       const docId1 = docId1Long.split('terminusdb:///data/')[1]
 
@@ -586,32 +586,32 @@ describe('diff-id', function () {
 
       const r3 = await agent.post(path)
         .send({
-          diffs: [            
-            { 
+          diffs: [
+            {
               '@op': 'Insert',
               '@insert': {
                 '@id': docId3,
                 '@type': class1,
                 a: 'soup',
-              }
+              },
             },
-            { 
+            {
               '@op': 'Delete',
-              '@delete': { 
+              '@delete': {
                 '@id': docId1,
                 '@type': class1,
-                a: 'pickles and eggs'
-              }
+                a: 'pickles and eggs',
+              },
             },
-            { 
+            {
               '@id': docId2,
               '@type': class2,
-              b: { 
-                '@op' : 'SwapValue',
+              b: {
+                '@op': 'SwapValue',
                 '@before': 'frog legs',
-                '@after': 'vegan frog legs'
-              }
-            }
+                '@after': 'vegan frog legs',
+              },
+            },
           ],
           commit_info: { author: 'gavin', message: 'something' },
           type: 'squash',
