@@ -5,7 +5,8 @@
               api_diff_id/8,
               api_diff_id_document/8,
               api_diff_all_documents/7,
-              api_apply_squash_commit/7
+              api_apply_squash_commit/7,
+              api_apply_squash_commit/6
           ]).
 
 :- use_module(core(util)).
@@ -229,6 +230,29 @@ api_apply_squash_commit(System_DB, Auth, Path, Commit_Info, Before_Version, Afte
                                                     After_Commit_Id,
                                                     Diff,
                                                     Merged_Options),
+                        apply_diff(Context,Diff,Witness,Merged_Options),
+                        \+ Witness = null
+                    ),
+                    Witnesses),
+            (   Witnesses = []
+            ->  true
+            ;   throw(error(apply_squash_witnesses(Witnesses)))
+            )
+        ),
+        _
+    ).
+
+api_apply_squash_commit(System_DB, Auth, Path, Commit_Info, Diffs, Options) :-
+    resolve_descriptor_auth(read, System_DB, Auth, Path, instance, Branch_Descriptor),
+    create_context(Branch_Descriptor, Commit_Info, Context),
+    merge_options(Options, options{keep:json{'@id':true, '@type':true},
+                                   count:inf,
+                                   start:0}, Merged_Options),
+    member(Diff, Diffs),
+    with_transaction(
+        Context,
+        (   findall(Witness,
+                    (   
                         apply_diff(Context,Diff,Witness,Merged_Options),
                         \+ Witness = null
                     ),
