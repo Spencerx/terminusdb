@@ -248,11 +248,11 @@ api_apply_squash_commit(System_DB, Auth, Path, Commit_Info, Diffs, Options) :-
     merge_options(Options, options{keep:json{'@id':true, '@type':true},
                                    count:inf,
                                    start:0}, Merged_Options),
-    member(Diff, Diffs),
     with_transaction(
         Context,
         (   findall(Witness,
                     (   
+                        member(Diff, Diffs),
                         apply_diff(Context,Diff,Witness,Merged_Options),
                         \+ Witness = null
                     ),
