@@ -2494,8 +2494,6 @@ paths:
             schema:
               type: object
               required:
-                - "before_commit"
-                - "after_commit"
                 - "commit_info"
               properties:
                 "before_commit":
@@ -2504,6 +2502,12 @@ paths:
                 "after_commit":
                   type: object
                   example: { "name" : { "@op" : "ValueSwap", "@before" : "Jane", "@after": "Janine" }}
+                "diffs":
+                  type: array
+                  items:
+                    type: object
+                  example: [ {  "@id" : "Person/Jane", "@type" : "Person", "name" : { "@op" : "ValueSwap", "@before" : "Jane", "@after": "Janine" }} ]
+                  description: "An explicit list of all differences you want to apply. When specified, the before_commit and after_commit property are ignored."
                 "commit_info":
                   $ref: "#/components/schemas/CommitInfo"
                 "match_final_state":
