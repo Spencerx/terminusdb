@@ -2430,6 +2430,23 @@ paths:
           ```
           A document may have both `@id` and `@capture` — `@id` assigns the document ID,
           while `@capture` registers a name for use in `@ref` cross-references.
+
+          **@ref in field-level patches**: The `@ref` mechanism also works in field-level
+          `SwapValue` operations. A `SwapValue` `@before` or `@after` value can use
+          `{"@ref":"name"}` to reference a capture from the same patch transaction. This
+          allows swapping a document's reference field to a newly inserted document:
+          ```json
+          [
+            {"@op":"Insert","@insert":{"@id":"Person/Alice","@type":"Person","@capture":"A","name":"Alice"}},
+            {"@id":"Person/Charlie","friend":{"@op":"SwapValue","@before":null,"@after":{"@ref":"A"}}}
+          ]
+          ```
+          Note that field-level patches operate on documents from the previous committed
+          layer — you cannot patch a document that was inserted in the same patch
+          transaction. However, `@ref` in a field-level patch can reference captures from
+          same-transaction inserts. URI comparisons are performed on fully expanded
+          canonical IRIs, so compressed IDs (e.g. `Person/Bob`) and full IRIs
+          (e.g. `http://example.com/document/Person/Bob`) are treated as equal.
           
           **Example:**
           ```bash

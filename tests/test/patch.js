@@ -462,5 +462,64 @@ describe('patch', function () {
       const charlieDoc = await document.get(agent, { query: { id: `${refClass}/Charlie`, as_list: true } })
       expect(charlieDoc.body[0].name).to.equal('Charles')
     }).timeout(10000)
+
+    it('field-level SwapValue with @ref on document reference field', async function () {
+      const refClass = util.randomString()
+      const schema = [
+        {
+          '@type': 'Class',
+          '@id': refClass,
+          name: 'xsd:string',
+          friend: { '@type': 'Optional', '@class': refClass },
+        },
+      ]
+      await document.insert(agent, { schema })
+      const path = api.path.patchDb(agent)
+
+      const setupPatch = [
+        {
+          '@op': 'Insert',
+          '@insert': {
+            '@id': `${refClass}/Charlie`,
+            '@type': refClass,
+            name: 'Charlie',
+          },
+        },
+      ]
+      const setupRes = await agent.post(path).send({ patch: setupPatch, author: 'me', message: 'insert Charlie' })
+      expect(setupRes.status).to.equal(200)
+
+      const patch = [
+        {
+          '@op': 'Insert',
+          '@insert': {
+            '@id': `${refClass}/Alice`,
+            '@type': refClass,
+            '@capture': 'PersonA',
+            name: 'Alice',
+            friend: { '@ref': 'PersonB' },
+          },
+        },
+        {
+          '@op': 'Insert',
+          '@insert': {
+            '@id': `${refClass}/Bob`,
+            '@type': refClass,
+            '@capture': 'PersonB',
+            name: 'Bob',
+            friend: { '@ref': 'PersonA' },
+          },
+        },
+        {
+          '@id': `${refClass}/Charlie`,
+          friend: { '@op': 'SwapValue', '@before': null, '@after': { '@ref': 'PersonA' } },
+        },
+      ]
+      const res = await agent.post(path).send({ patch, author: 'me', message: 'swap Charlie friend with ref' })
+      expect(res.status).to.equal(200)
+
+      const charlieDoc = await document.get(agent, { query: { id: `${refClass}/Charlie`, as_list: true } })
+      expect(charlieDoc.body[0].friend).to.equal(`${refClass}/Alice`)
+    }).timeout(10000)
   })
 })
