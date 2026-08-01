@@ -554,7 +554,7 @@ describe('diff-id', function () {
         }])
     })
 
-    it('apply squash commit with explicit differences', async function () {
+    it('apply patch with insert, delete, and swap', async function () {
       const class1 = util.randomString()
       const class2 = util.randomString()
       await document
@@ -580,13 +580,13 @@ describe('diff-id', function () {
       const [docId2Long] = r2.body
       const docId2 = docId2Long.split('terminusdb:///data/')[1]
 
-      const path = api.path.apply(agent)
+      const path = api.path.patchDb(agent)
 
       const docId3 = class1 + '/' + util.randomString()
 
       const r3 = await agent.post(path)
         .send({
-          diffs: [
+          patch: [
             {
               '@op': 'Insert',
               '@insert': {
@@ -599,8 +599,6 @@ describe('diff-id', function () {
               '@op': 'Delete',
               '@delete': {
                 '@id': docId1,
-                '@type': class1,
-                a: 'pickles and eggs',
               },
             },
             {
@@ -613,8 +611,8 @@ describe('diff-id', function () {
               },
             },
           ],
-          commit_info: { author: 'gavin', message: 'something' },
-          type: 'squash',
+          author: 'gavin',
+          message: 'something',
           match_final_state: true,
         })
 

@@ -17,6 +17,8 @@
 
 :- use_module(core(document/patch)).
 :- use_module(core(document/json)).
+:- use_module(core(document/normalize)).
+:- use_module(core(transaction/database)).
 
 % apply_diff(+Context, +Diff, Conflict ,Options)
 %
@@ -56,8 +58,10 @@ apply_diff(Context, Diff, Conflict, Options) :-
         ),
         error(can_not_insert_existing_object_with_id(Id), _),
         (   option(match_final_state(true), Options),
+            query_context_transaction_objects(Context, [Transaction]),
+            normalize_document(Transaction, Insert, Normalized_Insert),
             get_document(Context,Id,Document),
-            Document = Insert
+            Document = Normalized_Insert
         ->  Conflict = null
         ;   Conflict = json{ '@op' : 'InsertConflict',
                              '@id_already_exists' : Id }
@@ -78,6 +82,57 @@ apply_diff(Context, Diff, Conflict, Options) :-
     ).
 
 
+apply_diff_ids_captures(Context, Diff, Conflict, Ids, Options, Captures_In, Captures_Out) :-
+    get_dict('@delete', Diff, Delete_Candidate),
+    !,
+    (   is_dict(Delete_Candidate)
+    ->  do_or_die(get_dict('@id', Delete_Candidate, Delete_ID),
+                  error(missing_field('@id', Delete_Candidate), _))
+    ;   (string(Delete_Candidate) ; atom(Delete_Candidate))
+    ->  Delete_Candidate = Delete_ID
+    ;   throw(error(missing_field('@id', Delete_Candidate), _))
+    ),
+    catch(
+        (   delete_document(Context, Delete_ID),
+            Conflict = null,
+            Ids = [Delete_ID],
+            Captures_Out = Captures_In
+        ),
+        error(document_not_found(ID), _),
+        (   option(match_final_state(true), Options)
+        ->  Conflict = null,
+            Ids = [],
+            Captures_Out = Captures_In
+        ;   Conflict = json{ '@op' : 'DeleteConflict',
+                             '@id_does_not_exists' : ID },
+            Ids = [],
+            Captures_Out = Captures_In
+        )
+    ).
+apply_diff_ids_captures(Context, Diff, Conflict, Ids, Options, Captures_In, Captures_Out) :-
+    get_dict('@insert', Diff, Insert),
+    !,
+    catch(
+        (   insert_document(Context, Insert, false, Captures_In, Inserted_Ids, _Dependencies, Captures_Out),
+            Inserted_Ids = [Inserted_Id|_],
+            Conflict = null,
+            Ids = [Inserted_Id]
+        ),
+        error(can_not_insert_existing_object_with_id(Id), _),
+        (   option(match_final_state(true), Options),
+            query_context_transaction_objects(Context, [Transaction]),
+            normalize_document(Transaction, Insert, Normalized_Insert),
+            get_document(Context, Id, Document),
+            Document = Normalized_Insert
+        ->  Conflict = null,
+            Ids = [],
+            Captures_Out = Captures_In
+        ;   Conflict = json{ '@op' : 'InsertConflict',
+                             '@id_already_exists' : Id },
+            Ids = [],
+            Captures_Out = Captures_In
+        )
+    ).
 apply_diff_ids_captures(Context, Diff, Conflict, Ids, Options, Captures_In, Captures_Out) :-
     do_or_die(
         get_dict('@id', Diff, ID),

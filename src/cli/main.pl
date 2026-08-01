@@ -502,7 +502,7 @@ or two commits (path required).',
            help('Number of results to return (ignored if not comparing resources)')]
          ]).
 opt_spec(apply,'terminusdb apply [Path] OPTIONS',
-         'Apply an diff to path which is either explicit or obtained from the differences between two commits',
+         'Apply a diff to path which is obtained from the differences between two commits',
          [[opt(help),
            type(boolean),
            longflags([help]),
@@ -548,12 +548,7 @@ opt_spec(apply,'terminusdb apply [Path] OPTIONS',
            type(atom),
            longflags([after_commit,'after-commit']),
            shortflags([s]),
-           help('Commit of the *after* document(s)')],
-          [opt(diffs),
-           type(term),
-           longflags([diffs]),
-           shortflags([d]),
-           help('List of explicit differences to apply')]
+           help('Commit of the *after* document(s)')]
          ]).
 opt_spec(log,'terminusdb log DB_SPEC',
          'Get the log for a branch given by DB_SPEC.',
@@ -1951,46 +1946,27 @@ run_command(apply,[Path], Opts) :-
 
     option(before_commit(Before_Commit), Opts),
     option(after_commit(After_Commit), Opts),
-    option(diffs(Diffs), Opts),
     option(author(Author), Opts),
     option(message(Message), Opts),
     option(keep(Keep_Atom), Opts),
     option(type(Type_Atom), Opts),
     option(match_final_state(Match_Final_State), Opts),
-    (    var(Diffs)
-    ->  api_report_errors(
-            apply,
-            catch(
-                (   atom_json_dict(Keep_Atom, Keep, [default_tag(json)]),
-                    api_apply_squash_commit(System_DB, Auth, Path, commit_info{
-                                                                author: Author,
-                                                                message: Message},
+
+    api_report_errors(
+        apply,
+        catch(
+            (   atom_json_dict(Keep_Atom, Keep, [default_tag(json)]),
+                api_apply_squash_commit(System_DB, Auth, Path, commit_info{
+                                                                   author: Author,
+                                                                   message: Message},
                                         Before_Commit, After_Commit,
                                         [type(Type_Atom),
-                                        keep(Keep),
-                                        match_final_state(Match_Final_State)]),                    
-                    format(current_output,"Successfully applied\n",[])
-                ),
-                error(apply_squash_witnesses(Witnesses)),
-                json_write(current_output,Witnesses)
-            )
-        )
-    ;   api_report_errors(
-            apply,
-            catch(
-                (   atom_json_dict(Keep_Atom, Keep, [default_tag(json)]),
-                    api_apply_squash_commit(System_DB, Auth, Path, commit_info{
-                                                                author: Author,
-                                                                message: Message},
-                                        Diffs,
-                                        [type(Type_Atom),
-                                        keep(Keep),
-                                        match_final_state(Match_Final_State)]),
-                    format(current_output,"Successfully applied\n",[])
-                ),
-                error(apply_squash_witnesses(Witnesses)),
-                json_write(current_output,Witnesses)
-            )
+                                         keep(Keep),
+                                         match_final_state(Match_Final_State)]),
+                format(current_output,"Successfully applied\n",[])
+            ),
+            error(apply_squash_witnesses(Witnesses)),
+            json_write(current_output,Witnesses)
         )
     ).
 run_command(log,[Path], Opts) :-
