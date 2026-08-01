@@ -7,8 +7,7 @@ function rawParse (res, cb) {
   res.on('end', () => {
     const jsonStart = data.indexOf('{')
     if (jsonStart > 0) data = data.substring(jsonStart)
-    try { cb(null, JSON.parse(data)) }
-    catch (e) { cb(null, data) }
+    try { cb(null, JSON.parse(data)) } catch (e) { cb(null, data) }
   })
 }
 
@@ -324,7 +323,6 @@ describe('patch', function () {
       const docA = await document.get(agent, { query: { id: insertedIds[0], as_list: true } })
       const docB = await document.get(agent, { query: { id: insertedIds[1], as_list: true } })
       const aName = docA.body[0].name
-      const bName = docB.body[0].name
 
       const aliceDoc = aName === 'Alice' ? docA.body[0] : docB.body[0]
       const bobDoc = aName === 'Bob' ? docA.body[0] : docB.body[0]
