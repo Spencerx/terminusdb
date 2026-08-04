@@ -2846,12 +2846,8 @@ apply_handler(post, Path, Request, System_DB, Auth) :-
                      after_commit: After_Commit,
                      commit_info: Commit_Info0
                    } :< Document
-                ;  _{ diffs: Diffs,
-                     commit_info: Commit_Info0
-                   } :< Document
               ),
-              error(bad_api_document(Document, [[before_commit,after_commit,commit_info,type],
-                                                [diffs,commit_info,type]]))
+              error(bad_api_document(Document, [before_commit,after_commit,commit_info,type]))
              ),
     maybe_inject_auth_user(Auth, Commit_Info0, Commit_Info),
 
@@ -2874,19 +2870,11 @@ apply_handler(post, Path, Request, System_DB, Auth) :-
         apply,
         Request,
         catch(
-            (   
-                ( var(Diffs)
-                -> api_apply_squash_commit(System_DB, Auth, Path, Commit_Info,
+            (   api_apply_squash_commit(System_DB, Auth, Path, Commit_Info,
                                         Before_Commit, After_Commit,
                                         [type(Type_Atom),
                                          match_final_state(Match_Final_State),
-                                         keep(Keep)])
-                ;   api_apply_squash_commit(System_DB, Auth, Path, Commit_Info,
-                                        Diffs,
-                                        [type(Type_Atom),
-                                         match_final_state(Match_Final_State),
-                                         keep(Keep)])
-                ),
+                                         keep(Keep)]),
                 cors_reply_json(Request,
                                 json{'@type' : "api:ApplyResponse",
                                      'api:status' : "api:success"})),
