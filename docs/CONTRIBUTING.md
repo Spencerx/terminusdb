@@ -159,7 +159,10 @@ For local development on macOS, use the development build target which avoids co
   `` source_sink `library(tus)' does not exist ``.
 
 ```bash
+# For first time setup
+brew install protobuf
 make install-deps
+# Produce the dev build
 make dev
 ```
 
