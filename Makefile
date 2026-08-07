@@ -14,11 +14,12 @@ default:
 	@$(MAKE) -f distribution/Makefile.prolog
 
 # Build the development binary (macOS-friendly, no library stripping).
+# JWT is enabled by default in dev builds so integration tests work out of the box.
 .PHONY: dev
 dev: clean-rust generate-dev-jwks
 	rm src/rust/target/release/libterminusdb_dylib.dylib || true
 	rm src/rust/librust.* || true
-	@$(MAKE) -f distribution/Makefile.prolog $@
+	@TERMINUSDB_JWT_ENABLED=true $(MAKE) -f distribution/Makefile.prolog $@
 
 # Generate the dev RSA key pair used by JWT integration tests.
 # Writes dashboard/assets/test-jwks.json and /tmp/test-jwt-keypair.json.
