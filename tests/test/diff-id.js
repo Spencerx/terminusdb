@@ -256,6 +256,75 @@ describe('diff-id', function () {
       expect(r3.body[0].b.c).to.deep.equal({ '@after': 4, '@before': 3, '@op': 'SwapValue' })
     })
 
+    it('diff a single document with explicit unfold', async function () {
+      const class1 = util.randomString()
+      const class2 = util.randomString()
+      await document
+        .insert(agent, {
+          schema: [{ '@type': 'Class', '@id': class1, a: 'xsd:string', b: class2 },
+            {
+              '@type': 'Class',
+              '@id': class2,
+              c: 'xsd:integer',
+              '@subdocument': [],
+              '@key': { '@type': 'Lexical', '@fields': ['c'] },
+            },
+          ],
+        })
+      const r1 = await document
+        .insert(agent, {
+          instance: {
+            '@type': class1,
+            a: 'pickles and eggs',
+            b: {
+              '@type': class2,
+              c: 3,
+            },
+          },
+        })
+      const dv1 = r1.header['terminusdb-data-version']
+      const [docIdLong] = r1.body
+      const r2 = await document
+        .replace(agent, {
+          instance: {
+            '@type': class1,
+            a: 'pickles and eggs',
+            '@id': docIdLong,
+            b: {
+              '@type': class2,
+              c: 4,
+            },
+          },
+        })
+      const dv2 = r2.header['terminusdb-data-version']
+      const path = api.path.versionDiff(agent)
+
+      const unfolded = await agent.post(path).send(
+        {
+          before_data_version: dv1,
+          after_data_version: dv2,
+          document_id: docIdLong,
+          unfold: true,
+        })
+      expect(unfolded.status).to.equal(200)
+      expect(unfolded.body.b).to.deep.equal({
+        c: { '@after': 4, '@before': 3, '@op': 'SwapValue' },
+      })
+
+      const folded = await agent.post(path).send(
+        {
+          before_data_version: dv1,
+          after_data_version: dv2,
+          document_id: docIdLong,
+          unfold: false,
+        })
+      expect(folded.status).to.equal(200)
+      expect(folded.body.b['@op']).to.equal('SwapValue')
+      expect(folded.body.b['@before']).to.be.a('string')
+      expect(folded.body.b['@after']).to.be.a('string')
+      expect(folded.body.b).to.not.have.property('c')
+    })
+
     it('diff inserted object', async function () {
       const class1 = util.randomString()
       const class2 = util.randomString()
@@ -474,6 +543,89 @@ describe('diff-id', function () {
         })
 
       expect(r4.status).to.equal(200)
+
+      const r5 = await document.get(agent, { query: { type: class2, as_list: true } })
+
+      expect(r5.body).to.deep.equal([
+        {
+          '@id': docId2,
+          '@type': class2,
+          b: 'vegan frog legs',
+        }])
+    })
+
+    it('apply patch with insert, delete, and swap', async function () {
+      const class1 = util.randomString()
+      const class2 = util.randomString()
+      await document
+        .insert(agent, {
+          schema: [
+            { '@type': 'Class', '@id': class1, a: 'xsd:string' },
+            { '@type': 'Class', '@id': class2, b: 'xsd:string' },
+          ],
+        })
+      const r1 = await document
+        .insert(agent, {
+          instance: { '@type': class1, a: 'pickles and eggs' },
+        })
+
+      const [docId1Long] = r1.body
+      const docId1 = docId1Long.split('terminusdb:///data/')[1]
+
+      const r2 = await document
+        .insert(agent, {
+          instance: { '@type': class2, b: 'frog legs' },
+        })
+
+      const [docId2Long] = r2.body
+      const docId2 = docId2Long.split('terminusdb:///data/')[1]
+
+      const path = api.path.patchDb(agent)
+
+      const docId3 = class1 + '/' + util.randomString()
+
+      const r3 = await agent.post(path)
+        .send({
+          patch: [
+            {
+              '@op': 'Insert',
+              '@insert': {
+                '@id': docId3,
+                '@type': class1,
+                a: 'soup',
+              },
+            },
+            {
+              '@op': 'Delete',
+              '@delete': {
+                '@id': docId1,
+              },
+            },
+            {
+              '@id': docId2,
+              '@type': class2,
+              b: {
+                '@op': 'SwapValue',
+                '@before': 'frog legs',
+                '@after': 'vegan frog legs',
+              },
+            },
+          ],
+          author: 'gavin',
+          message: 'something',
+          match_final_state: true,
+        })
+
+      expect(r3.status).to.equal(200)
+
+      const r4 = await document.get(agent, { query: { type: class1, as_list: true } })
+
+      expect(r4.body).to.deep.equal([
+        {
+          '@id': docId3,
+          '@type': class1,
+          a: 'soup',
+        }])
 
       const r5 = await document.get(agent, { query: { type: class2, as_list: true } })
 

@@ -16,6 +16,8 @@
 
 :- use_module(library(option)).
 
+:- use_module(core(query/jsonld)).
+
 %
 % simple_patch(+Diff,+JSON,-Success_or_Conflict,+Options) is det.
 %
@@ -111,16 +113,20 @@ pairs_and_conflicts_from_keys([Key|Keys], JSON, Diff,
 % In Prolog, atoms and strings don't unify even with identical characters,
 % so we convert both to atoms before comparison.
 %
-% Dicts (subdocument objects), lists, and numbers are compared
-% structurally — only atoms and strings use coerced comparison.
+% Numbers are compared by numeric equality so that representations such
+% as a stored xsd:decimal rational (e.g. 11r10) and a JSON float (e.g. 1.1)
+% are treated as equal.  Dicts and lists are compared structurally.
 %
+values_equal(V1, V2) :-
+    number(V1),
+    number(V2),
+    !,
+    V1 =:= V2.
 values_equal(V1, V2) :-
     (   is_dict(V1)
     ;   is_dict(V2)
     ;   is_list(V1)
     ;   is_list(V2)
-    ;   number(V1)
-    ;   number(V2)
     ),
     !,
     V1 = V2.
@@ -130,6 +136,54 @@ values_equal(V1, V2) :-
     (   atom(V2) -> A2 = V2 ; atom_string(A2, V2)),
     A1 = A2.
 
+%
+% values_equal(+Value1, +Value2, +Prefixes) is semidet.
+%
+% Compare two values using canonical IRI expansion. Both string/atom
+% values are expanded via prefix_expand/3 using the provided Prefixes
+% context before comparison. Non-string values delegate to
+% values_equal/2.
+%
+values_equal(V1, V2, _Prefixes) :-
+    (   number(V1)
+    ;   number(V2)
+    ;   is_dict(V1)
+    ;   is_dict(V2)
+    ;   is_list(V1)
+    ;   is_list(V2)
+    ),
+    !,
+    values_equal(V1, V2).
+values_equal(V1, V2, Prefixes) :-
+    (   atom(V1) -> A1 = V1 ; atom_string(A1, V1)),
+    (   atom(V2) -> A2 = V2 ; atom_string(A2, V2)),
+    prefix_expand(A1, Prefixes, E1),
+    prefix_expand(A2, Prefixes, E2),
+    atom_string(E1, E1_String),
+    atom_string(E2, E2_String),
+    E1_String = E2_String.
+
+check_before_after(Original, Before, After, Final, Options) :-
+    option(match_final_state(true), Options),
+    option(prefixes(Prefixes), Options),
+    !,
+    (   values_equal(Original, After, Prefixes)
+    ->  Final = success(After)
+    ;   values_equal(Original, Before, Prefixes)
+    ->  Final = success(After)
+    ;   Final = conflict(json{ '@op' : 'Conflict',
+                               '@expected' : Before,
+                               '@found' : Original })
+    ).
+check_before_after(Original, Before, After, Final, Options) :-
+    option(prefixes(Prefixes), Options),
+    !,
+    (   values_equal(Original, Before, Prefixes)
+    ->  Final = success(After)
+    ;   Final = conflict(json{ '@op' : 'Conflict',
+                               '@expected' : Before,
+                               '@found' : Original })
+    ).
 check_before_after(Original, Before, After, Final, Options) :-
     option(match_final_state(true), Options),
     !,
@@ -1073,5 +1127,65 @@ test(values_equal_null_vs_dict, [fail]) :-
     D = json{ '@type' : "Quantity", value : 1 },
     values_equal(null, D).
 
+test(values_equal_rational_and_float, []) :-
+    %% xsd:decimal is stored as a rational, but JSON supplies a float.
+    values_equal(11r10, 1.1).
+
+test(values_equal_float_and_integer, []) :-
+    values_equal(1.0, 1).
+
+test(values_equal_integer_and_decimal, []) :-
+    values_equal(1, 1r1).
+
+test(swap_decimal_value, []) :-
+    %% Regression: patching a decimal property with a float SwapValue
+    %% must not produce a conflict when the stored value is equal.
+    Before = _{ '@id' : "Test/1",
+                '@type' : "Test",
+                weight : 11r10 },
+    Patch = _{ weight : _{ '@op' : "SwapValue",
+                           '@before' : 1.1,
+                           '@after' : 1.2 } },
+    After =  _{ '@id' : "Test/1",
+                '@type' : "Test",
+                weight : 1.2 },
+    simple_patch(Patch, Before, success(After), []).
+
 :- end_tests(simple_patch).
+
+:- begin_tests(values_equal_canonical).
+
+test(same_compressed_id, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal("Person/Bob", "Person/Bob", Prefixes).
+
+test(compressed_vs_expanded, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal("Person/Bob", "http://somewhere.for.now/document/Person/Bob", Prefixes).
+
+test(expanded_vs_compressed, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal("http://somewhere.for.now/document/Person/Bob", "Person/Bob", Prefixes).
+
+test(both_expanded, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal("http://somewhere.for.now/document/Person/Bob",
+                 "http://somewhere.for.now/document/Person/Bob", Prefixes).
+
+test(different_ids_not_equal, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    \+ values_equal("Person/Bob", "Person/Alice", Prefixes).
+
+test(no_prefixes_fallback, []) :-
+    values_equal("Person/Bob", "Person/Bob", _{}).
+
+test(number_comparison_with_prefixes, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal(1.1, 11r10, Prefixes).
+
+test(dict_comparison_with_prefixes, []) :-
+    Prefixes = _{ '@base' : "http://somewhere.for.now/document/" },
+    values_equal(json{x:1}, json{x:1}, Prefixes).
+
+:- end_tests(values_equal_canonical).
 
