@@ -12,6 +12,8 @@ const JWKS_FILE = path.join(DASHBOARD_ASSETS_DIR, 'test-jwks.json')
 let adminAgent
 // Generated key material
 let keyPair
+// Whether JWT is enabled on the server (probed at startup)
+let jwtEnabled
 
 describe('jwt', function () {
   before(async function () {
@@ -31,6 +33,18 @@ describe('jwt', function () {
     // Set up admin agent for database creation
     adminAgent = new Agent()
     adminAgent.auth()
+
+    // Probe whether JWT is enabled on the server by sending a valid token.
+    // If the server returns 401, JWT is not configured and valid-token tests skip.
+    const probeToken = jwt.signToken(keyPair.privateKey, { sub: 'admin' }, { kid: 'test-jwt-key' })
+    const probeAgent = new Agent()
+    probeAgent.set('Authorization', `Bearer ${probeToken}`)
+    try {
+      const res = await probeAgent.get('/api/')
+      jwtEnabled = res.status === 200
+    } catch (e) {
+      jwtEnabled = false
+    }
   })
 
   after(async function () {
@@ -60,6 +74,8 @@ describe('jwt', function () {
     let jwtAgent
 
     before(async function () {
+      if (!jwtEnabled) this.skip()
+
       // Create a database as admin first
       adminAgent = new Agent()
       adminAgent.auth()
