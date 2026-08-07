@@ -8,6 +8,7 @@ mod changes;
 mod consts;
 mod doc;
 mod embedding;
+mod jwt;
 mod graphql;
 mod json_preserve;
 mod path;
@@ -121,4 +122,5 @@ pub fn install() {
     template::register();
     changes::register();
     embedding::register();
+    jwt::register();
 }
