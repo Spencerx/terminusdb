@@ -51,11 +51,11 @@
 load_jwt_conditionally :-
     (   jwt_jwks_endpoint(Endpoint)
     ->  ignore(catch('$rustnative':jwt_setup_jwks(Endpoint), E,
-              (   format(user_error, "JWT JWKS setup failed: ~w~n", [E]),
+              (   json_log_error_formatted('JWT JWKS setup failed: ~w', [E]),
                   true)))
     ;   oidc_issuer_url(IssuerUrl)
     ->  ignore(catch('$rustnative':jwt_setup_oidc(IssuerUrl), E,
-              (   format(user_error, "JWT OIDC setup failed: ~w~n", [E]),
+              (   json_log_error_formatted('JWT OIDC setup failed: ~w', [E]),
                   true)))
     ;   true  % No JWKS or OIDC configured — JWT auth will fail at decode time
     ),

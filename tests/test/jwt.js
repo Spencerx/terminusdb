@@ -18,7 +18,7 @@ describe('jwt', function () {
     // The JWKS file must be written BEFORE the server starts so the server's
     // initial fetch loads the correct keys. If the file already exists (server
     // already started with it), load the existing key pair.
-    if (fs.existsSync(JWKS_FILE)) {
+    if (fs.existsSync(JWKS_FILE) && fs.existsSync('/tmp/test-jwt-keypair.json')) {
       const keyPairData = JSON.parse(fs.readFileSync('/tmp/test-jwt-keypair.json', 'utf-8'))
       keyPair = keyPairData
     } else {

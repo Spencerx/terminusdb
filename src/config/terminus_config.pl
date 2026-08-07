@@ -173,7 +173,12 @@ oidc_issuer_url(Url) :-
     (   Value = ''
     ->  false
     ;   atom_string(Value, Str),
-        string_concat("https://", _, Str),
+        (   string_concat("https://", _, Str)
+        ->  true
+        ;   string_concat("http://localhost", _, Str)
+        ->  true
+        ;   string_concat("http://127.0.0.1", _, Str)
+        ),
         Url = Value ).
 
 jwt_scopes_enabled :-
@@ -230,7 +235,7 @@ check_jwt_key_source_safety :-
     \+ oidc_issuer_url(_),
     !,
     json_log_warning_formatted(
-        'OIDC issuer URL (TERMINUSDB_OIDC_ISSUER_URL) is set but does not use HTTPS. Only https:// URLs are accepted. JWT authentication will fail until a valid HTTPS issuer URL is provided.',
+        'OIDC issuer URL (TERMINUSDB_OIDC_ISSUER_URL) is set but does not use HTTPS or http://localhost. Only https:// URLs (or http://localhost for testing) are accepted. JWT authentication will fail until a valid issuer URL is provided.',
         []).
 check_jwt_key_source_safety :-
     \+ jwt_jwks_endpoint(_),

@@ -244,6 +244,26 @@ fn parse_jwt_header(token: &str) -> Result<JwtHeader, String> {
     serde_json::from_slice(&bytes).map_err(|e| format!("header json error: {}", e))
 }
 
+/// Check whether the token's payload contains an `nbf` claim.
+/// Only inspects the unsigned payload — safe because an attacker cannot
+/// add `nbf` to a signed token without the signing key.
+fn token_has_nbf(token: &str) -> bool {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() < 2 {
+        return false;
+    }
+    use base64::Engine;
+    let bytes = match base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(parts[1]) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let value: Value = match serde_json::from_slice(&bytes) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    value.get("nbf").is_some()
+}
+
 #[derive(Deserialize, Default)]
 struct JwtDecodeOptions {
     iss: Option<String>,
@@ -359,8 +379,11 @@ predicates! {
 
         let mut validation = Validation::new(header_alg);
         validation.validate_exp = true;
-        validation.validate_nbf = true;
         validation.leeway = opts.clock_tolerance.unwrap_or(60);
+        // Enable nbf validation only if the token actually contains an nbf claim.
+        // Many IdPs omit nbf; the library's validate_nbf=true rejects tokens without it.
+        let has_nbf = token_has_nbf(&token);
+        validation.validate_nbf = has_nbf;
         if let Some(iss) = &opts.iss {
             validation.set_issuer(&[iss]);
         }
