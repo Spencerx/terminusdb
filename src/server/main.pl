@@ -14,6 +14,7 @@
 
 :- use_module(core(triple)).
 :- use_module(core(util/utils)).
+:- use_module(core(util), [json_log_error_formatted/2]).
 :- use_module(core(api)).
 :- use_module(core(plugins)).
 
